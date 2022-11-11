@@ -24,9 +24,10 @@ class TaxiProblem(search.Problem):
         state = json.loads(state)  # transforming the state from json string to dictionary
         possible_actions = {}
         for taxi in state["taxis"]:
+            possible_actions[taxi] = []
             # checking if the taxi can move in the grid
             if state["taxis"][taxi]["current_fuel"] > 0:
-                possible_actions[taxi] = self.check_possible_grid_moves(state["taxis"][taxi]["location"], taxi) # need to check about current cars in these locations
+                possible_actions[taxi] = possible_actions[taxi] + self.check_possible_grid_moves(state["taxis"][taxi]["location"], taxi) # need to check about current cars in these locations
 
             # checking if the taxi can pick up a passenger
             if state["taxis"][taxi]["current_capacity"] < state["taxis"][taxi]["capacity"]:
@@ -61,15 +62,16 @@ class TaxiProblem(search.Problem):
                 for passenger in state["taxis"][taxi_action[1]]["passengers"]:
                     state["passengers"][passenger]["location"] = taxi_action[2]
 
-            elif taxi_action[0] == "pick_up":
+            elif taxi_action[0] == "pick up":
                 # adding the passenger to the taxi passengers list, increasing the taxi capacity by 1
                 state["taxis"][taxi_action[1]]["passengers"].append(taxi_action[2])
                 state["taxis"][taxi_action[1]]["current_capacity"] += 1
 
-            elif taxi_action[0] == "drop_off":
+            elif taxi_action[0] == "drop off":
                 # removing the passenger from the taxi passengers list, decreasing the taxi capacity by 1
                 state["taxis"][taxi_action[1]]["passengers"].remove(taxi_action[2])
                 state["taxis"][taxi_action[1]]["current_capacity"] -= 1
+                state["num_passengers"] -= 1
 
             elif taxi_action[0] == "refuel":
                 # increasing the taxi fuel to its maximum
@@ -85,6 +87,8 @@ class TaxiProblem(search.Problem):
         for passenger in state["passengers"]:
             if state["passengers"][passenger]["location"] != state["passengers"][passenger]["destination"]:
                 return False
+        if state["num_passengers"] != 0:
+            return False
         return True
 
     def h(self, node):
@@ -115,6 +119,7 @@ class TaxiProblem(search.Problem):
             initial["taxis"][taxi]["passengers"] = []
             initial["taxis"][taxi]["current_fuel"] = initial["taxis"][taxi]["fuel"]
             initial["taxis"][taxi]["current_capacity"] = 0
+        initial["num_passengers"] = len(initial["passengers"])
         return json.dumps(initial)
 
     def check_possible_grid_moves(self, location, taxi_name):
@@ -142,7 +147,7 @@ class TaxiProblem(search.Problem):
         passenger_actions = []
         for passenger in passengers.keys():
             if passengers[passenger]["location"] == location and passenger not in taxi_passengers:
-                passenger_actions.append(("pick_up", taxi_name, passenger))
+                passenger_actions.append(("pick up", taxi_name, passenger))
         return passenger_actions
 
     def check_drop_off_passenger(self, location, passengers_of_taxi, taxi_name, all_passengers):
@@ -152,7 +157,7 @@ class TaxiProblem(search.Problem):
         passenger_actions = []
         for passenger in passengers_of_taxi:
             if all_passengers[passenger]["destination"] == location:
-                passenger_actions.append(("drop_off", taxi_name, passenger))
+                passenger_actions.append(("drop off", taxi_name, passenger))
         return passenger_actions
 
 
