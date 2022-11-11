@@ -80,9 +80,6 @@ def main():
                     ['P', 'P', 'P', 'P'], ],
             "taxis": {'taxi 1': {"location": (3, 3),
                                  "fuel": 15,
-                                 "capacity": 2},
-                      'taxi 2': {"location": (3, 2),
-                                 "fuel": 15,
                                  "capacity": 2}},
 
             "passengers": {'Yossi': {"location": (0, 0),
