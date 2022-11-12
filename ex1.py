@@ -40,12 +40,9 @@ class TaxiProblem(search.Problem):
             if state["taxis"][taxi]["current_fuel"] < state["taxis"][taxi]["fuel"] and self.map[state["taxis"][taxi]["location"][0]][state["taxis"][taxi]["location"][1]] == 'G':
                 possible_actions[taxi] = possible_actions[taxi] + [("refuel", taxi)]
 
-        if len(state["taxis"]) < 2:
-            return tuple(itertools.product(*list(possible_actions.values())))
-        else:
-            all_actions = tuple(itertools.product(*list(possible_actions.values())))
-            self.eliminate_not_valid_actions(all_actions, state)
-            return tuple(itertools.product(*list(possible_actions.values())))
+        all_actions = tuple(itertools.product(*list(possible_actions.values())))
+        self.eliminate_not_valid_actions(all_actions, state)
+        return all_actions
 
 
     def result(self, state, action):
