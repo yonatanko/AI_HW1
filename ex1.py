@@ -27,7 +27,7 @@ class TaxiProblem(search.Problem):
             possible_actions[taxi] = []
             # checking if the taxi can move in the grid
             if state["taxis"][taxi]["current_fuel"] > 0:
-                possible_actions[taxi] = possible_actions[taxi] + self.check_possible_grid_moves(state["taxis"][taxi]["location"], taxi) # need to check about current cars in these locations
+                possible_actions[taxi] = possible_actions[taxi] + self.check_possible_grid_moves(state["taxis"][taxi]["location"], taxi)
 
             # checking if the taxi can pick up a passenger
             if state["taxis"][taxi]["current_capacity"] < state["taxis"][taxi]["capacity"]:
@@ -40,6 +40,8 @@ class TaxiProblem(search.Problem):
             if state["taxis"][taxi]["current_fuel"] < state["taxis"][taxi]["fuel"] and self.map[state["taxis"][taxi]["location"][0]][state["taxis"][taxi]["location"][1]] == 'G':
                 possible_actions[taxi] = possible_actions[taxi] + [("refuel", taxi)]
 
+            possible_actions[taxi] = possible_actions[taxi] + [("wait", taxi)]
+
         all_actions = tuple(itertools.product(*list(possible_actions.values())))
         all_actions = self.eliminate_not_valid_actions(all_actions, state)
         return all_actions
@@ -51,7 +53,10 @@ class TaxiProblem(search.Problem):
         self.actions(state)."""
         state = json.loads(state)  # transforming the state from json string to dictionary
         for taxi_action in action:
-            if taxi_action[0] == "move":
+            if taxi_action[0] == "wait":
+                continue
+
+            elif taxi_action[0] == "move":
                 # move the taxi, update its location and decrease its fuel by 1 unit
                 state["taxis"][taxi_action[1]]["location"] = taxi_action[2]
                 state["taxis"][taxi_action[1]]["current_fuel"] -= 1
@@ -230,8 +235,6 @@ class TaxiProblem(search.Problem):
         """
         calculate the euclidean distance between two locations
         """
-        print(location1, location2)
-        exit()
         return math.sqrt((location1[0] - location2[0])**2 + (location1[1] - location2[1])**2)
 
 
