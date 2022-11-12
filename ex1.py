@@ -63,12 +63,14 @@ class TaxiProblem(search.Problem):
                 # adding the passenger to the taxi passengers list, increasing the taxi capacity by 1
                 state["taxis"][taxi_action[1]]["passengers"].append(taxi_action[2])
                 state["taxis"][taxi_action[1]]["current_capacity"] += 1
+                state["passengers"][taxi_action[2]]["picked_up"] = True
 
             elif taxi_action[0] == "drop off":
                 # removing the passenger from the taxi passengers list, decreasing the taxi capacity by 1
                 state["taxis"][taxi_action[1]]["passengers"].remove(taxi_action[2])
                 state["taxis"][taxi_action[1]]["current_capacity"] -= 1
-                state["num_passengers"] -= 1
+                state["num_not_reached_to_dest"] -= 1
+                state["passengers"][taxi_action[2]]["dropped_off"] = True
 
             elif taxi_action[0] == "refuel":
                 # increasing the taxi fuel to its maximum
@@ -84,7 +86,7 @@ class TaxiProblem(search.Problem):
         for passenger in state["passengers"]:
             if state["passengers"][passenger]["location"] != state["passengers"][passenger]["destination"]:
                 return False
-        if state["num_passengers"] != 0:
+        if state["num_not_reached_to_dest"] != 0:
             return False
         return True
 
@@ -98,11 +100,33 @@ class TaxiProblem(search.Problem):
         """
         This is a simple heuristic
         """
+        state = json.loads(node.state)
+        unpicked_passengers = 0
+        picked_but_undelivered = 0
+        num_taxis = len(state["taxis"])
+        for passenger in state["passengers"]:
+            if not state["passengers"][passenger]["picked_up"]:
+                unpicked_passengers += 1
+            elif not state["passengers"][passenger]["dropped_off"]:
+                picked_but_undelivered += 1
+        return (unpicked_passengers + picked_but_undelivered)/num_taxis
+
 
     def h_2(self, node):
         """
         This is a slightly more sophisticated Manhattan heuristic
         """
+        state = json.loads(node.state)
+        num_taxis = len(state["taxis"])
+        sum_D_i = 0
+        sum_T_i = 0
+        for passenger in state["passengers"]:
+            if not state["passengers"][passenger]["picked_up"]:
+                sum_D_i += self.manhattan_distance(state["passengers"][passenger]["initial_location"], state["passengers"][passenger]["destination"])
+            elif not state["passengers"][passenger]["dropped_off"]:
+                sum_T_i += self.manhattan_distance(state["passengers"][passenger]["location"], state["passengers"][passenger]["destination"])
+        return (sum_D_i + sum_T_i)/num_taxis
+
 
     """Feel free to add your own functions
     (-2, -2, None) means there was a timeout"""
@@ -112,11 +136,18 @@ class TaxiProblem(search.Problem):
         adding data to the state and removing the map
         """""
         del(initial["map"])
+        # Adding data about the taxis
         for taxi in initial["taxis"].keys():
             initial["taxis"][taxi]["passengers"] = []
             initial["taxis"][taxi]["current_fuel"] = initial["taxis"][taxi]["fuel"]
             initial["taxis"][taxi]["current_capacity"] = 0
-        initial["num_passengers"] = len(initial["passengers"])
+
+        # Adding data about the passengers
+        initial["num_not_reached_to_dest"] = len(initial["passengers"])
+        for passenger in initial["passengers"].keys():
+            initial["passengers"][passenger]["picked_up"] = False
+            initial["passengers"][passenger]["dropped_off"] = False
+            initial["passengers"][passenger]["initial_location"] = initial["passengers"][passenger]["location"]
         return json.dumps(initial)
 
     def check_possible_grid_moves(self, location, taxi_name):
@@ -181,6 +212,12 @@ class TaxiProblem(search.Problem):
                 all_actions = list(all_actions)
                 all_actions.remove(action)
                 all_actions = tuple(all_actions)
+
+    def manhattan_distance(self, location1, location2):
+        """
+        calculate the manhattan distance between two locations
+        """
+        return abs(location1[0] - location2[0]) + abs(location1[1] - location2[1])
 
 
 def create_taxi_problem(game):
