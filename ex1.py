@@ -41,7 +41,7 @@ class TaxiProblem(search.Problem):
                 possible_actions[taxi] = possible_actions[taxi] + [("refuel", taxi)]
 
         all_actions = tuple(itertools.product(*list(possible_actions.values())))
-        self.eliminate_not_valid_actions(all_actions, state)
+        all_actions = self.eliminate_not_valid_actions(all_actions, state)
         return all_actions
 
 
@@ -94,7 +94,12 @@ class TaxiProblem(search.Problem):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via node.state)
         and returns a goal distance estimate"""
-        return 0
+        # state = json.loads(node.state)
+        # euclidean_distance = 0
+        # for passenger in state["passengers"]:
+        #     euclidean_distance += self.euclidean_distance(state["passengers"][passenger]["location"], state["passengers"][passenger]["destination"])
+        # return euclidean_distance
+        return self.h_2(node)
 
     def h_1(self, node):
         """
@@ -170,11 +175,11 @@ class TaxiProblem(search.Problem):
 
     def check_if_contains_passenger(self, location, passengers, taxi_name, taxi_passengers):
         """
-        check if the location contains a passenger and if the taxi doesn't already have him
+        check if the location contains a passenger and if the taxi doesn't already have him and the passenger hasnt reached his destination
         """
         passenger_actions = []
         for passenger in passengers.keys():
-            if passengers[passenger]["location"] == location and passenger not in taxi_passengers:
+            if passengers[passenger]["location"] == location and passenger not in taxi_passengers and not passengers[passenger]["dropped_off"]:
                 passenger_actions.append(("pick up", taxi_name, passenger))
         return passenger_actions
 
@@ -206,18 +211,28 @@ class TaxiProblem(search.Problem):
         """
         check all actions and eliminate the ones that are not valid (2 taxis in the same location)
         """
-        for action in all_actions:
-            locations = self.extract_locations(action, state)
-            if len(locations) != len(set(locations)):
-                all_actions = list(all_actions)
-                all_actions.remove(action)
-                all_actions = tuple(all_actions)
+        new_all_actions = []
+        if len(state["taxis"]) > 1:
+            for action in all_actions:
+                locations = self.extract_locations(action, state)
+                if len(locations) == len(set(locations)):
+                    new_all_actions.append(action)
+            return new_all_actions
+        return all_actions
 
     def manhattan_distance(self, location1, location2):
         """
         calculate the manhattan distance between two locations
         """
         return abs(location1[0] - location2[0]) + abs(location1[1] - location2[1])
+
+    def euclidean_distance(self, location1, location2):
+        """
+        calculate the euclidean distance between two locations
+        """
+        print(location1, location2)
+        exit()
+        return math.sqrt((location1[0] - location2[0])**2 + (location1[1] - location2[1])**2)
 
 
 def create_taxi_problem(game):
