@@ -10,15 +10,15 @@ ids = ["212984801", "316111442"]
 class TaxiProblem(search.Problem):
     """This class implements a medical problem according to problem description file"""
 
-    def __init__(self, initial):
+    def __init__(self, initial, type_of_h):
         """Don't forget to implement the goal test
         You should change the initial to your own representation.
         search.Problem.__init__(self, initial) creates the root node"""
         self.map = initial["map"]
         search.Problem.__init__(self, self.add_data_and_transform_to_json(initial))
+        self.type_of_h = type_of_h
 
 
-        
     def actions(self, state):
         """Returns all the actions that can be executed in the given
         state. The result should be a tuple (or other iterable) of actions
@@ -29,14 +29,17 @@ class TaxiProblem(search.Problem):
             possible_actions[taxi] = []
             # checking if the taxi can move in the grid
             if state["taxis"][taxi]["current_fuel"] > 0:
-                possible_actions[taxi] = possible_actions[taxi] + self.check_possible_grid_moves(state["taxis"][taxi]["location"], taxi)
+                possible_actions[taxi] = possible_actions[taxi] + self.check_possible_grid_moves(
+                    state["taxis"][taxi]["location"], taxi)
 
             # checking if the taxi can pick up a passenger
             if state["taxis"][taxi]["current_capacity"] < state["taxis"][taxi]["capacity"]:
-                possible_actions[taxi] = possible_actions[taxi] + self.check_if_contains_passenger(state["taxis"][taxi]["location"], state["passengers"], taxi, state["taxis"][taxi]["passengers"])
+                possible_actions[taxi] = possible_actions[taxi] + self.check_if_contains_passenger(
+                    state["taxis"][taxi]["location"], state["passengers"], taxi, state["taxis"][taxi]["passengers"])
 
             # checking if the taxi can drop off a passenger
-            possible_actions[taxi] = possible_actions[taxi] + self.check_drop_off_passenger(state["taxis"][taxi]["location"], state["taxis"][taxi]["passengers"], taxi, state["passengers"])
+            possible_actions[taxi] = possible_actions[taxi] + self.check_drop_off_passenger(
+                state["taxis"][taxi]["location"], state["taxis"][taxi]["passengers"], taxi, state["passengers"])
 
             # checking if the taxi can refuel
             if self.map[state["taxis"][taxi]["location"][0]][state["taxis"][taxi]["location"][1]] == 'G':
@@ -46,7 +49,6 @@ class TaxiProblem(search.Problem):
 
         all_actions = tuple(itertools.product(*list(possible_actions.values())))
         all_actions = self.eliminate_not_valid_actions(all_actions, state)
-
         return all_actions
 
     def result(self, state, action):
@@ -83,13 +85,16 @@ class TaxiProblem(search.Problem):
                 # increasing the taxi fuel to its maximum
                 state["taxis"][taxi_action[1]]["current_fuel"] = state["taxis"][taxi_action[1]]["fuel"]
 
-        state = json.dumps(state, sort_keys=True)  # transforming the state from dictionary to json string
+        state = json.dumps(state)
         return state
 
     def goal_test(self, state):
         """ Given a state, checks if this is the goal state.
          Returns True if it is, False otherwise."""
         state = json.loads(state)
+        for passenger in state["passengers"]:
+            if state["passengers"][passenger]["location"] != state["passengers"][passenger]["destination"]:
+                return False
         if state["num_not_reached_to_dest"] != 0:
             return False
         return True
@@ -99,16 +104,42 @@ class TaxiProblem(search.Problem):
         state can be accessed via node.state)
         and returns a goal distance estimate"""
         state = json.loads(node.state)
-        # building an admissible heuristic
-        for taxi in state["taxis"]:
-            if state["taxis"][taxi]["fuel"] == 0 and self.map[state["taxis"][taxi]["location"][0]][state["taxis"][taxi]["location"][1]] != "G":
-                if len(state["taxis"]) == 1 and len(state["taxis"][taxi]["passengers"]) == 0 and len(state["taxis"]) == 1:
-                    return math.inf
-                else:
-                    for passenger in state["taxis"][taxi]["passengers"]:
-                        if state["passengers"][passenger]["location"] != state["passengers"][passenger]["destination"]:
-                           return math.inf
-        return self.h_2(node)
+        if self.type_of_h == "h_1":
+            return self.h_1(node)
+        elif self.type_of_h == "h_2":
+            return self.h_2(node)
+        elif self.type_of_h == "euclidean":
+            euclidean_distance = 0
+            for passenger in state["passengers"]:
+                if not state["passengers"][passenger]["dropped_off"]:
+                    euclidean_distance += self.euclidean_distance(state["passengers"][passenger]["location"],
+                                                                  state["passengers"][passenger]["destination"])
+            return euclidean_distance
+        elif self.type_of_h == "manhattan":
+            manhattan_distance = 0
+            for passenger in state["passengers"]:
+                if not state["passengers"][passenger]["dropped_off"]:
+                    manhattan_distance += self.manhattan_distance(state["passengers"][passenger]["location"],
+                                                                  state["passengers"][passenger]["destination"])
+            return manhattan_distance
+
+        elif self.type_of_h == "max of h_1 and h_2":
+            return max(self.h_1(node), self.h_2(node))
+
+        elif self.type_of_h == "max of euclidean and manhattan":
+            euclidean_distance = 0
+            for passenger in state["passengers"]:
+                if not state["passengers"][passenger]["dropped_off"]:
+                    euclidean_distance += self.euclidean_distance(state["passengers"][passenger]["location"],
+                                                                  state["passengers"][passenger]["destination"])
+            manhattan_distance = 0
+            for passenger in state["passengers"]:
+                if not state["passengers"][passenger]["dropped_off"]:
+                    manhattan_distance += self.manhattan_distance(state["passengers"][passenger]["location"],
+                                                                  state["passengers"][passenger]["destination"])
+            return max(euclidean_distance, manhattan_distance)
+        elif self.type_of_h == "zero":
+            return 0
 
     def h_1(self, node):
         """
@@ -123,8 +154,7 @@ class TaxiProblem(search.Problem):
                 unpicked_passengers += 1
             elif not state["passengers"][passenger]["dropped_off"]:
                 picked_but_undelivered += 1
-        return (unpicked_passengers + picked_but_undelivered)/num_taxis
-
+        return (unpicked_passengers + picked_but_undelivered) / num_taxis
 
     def h_2(self, node):
         """
@@ -136,11 +166,12 @@ class TaxiProblem(search.Problem):
         sum_T_i = 0
         for passenger in state["passengers"]:
             if not state["passengers"][passenger]["picked_up"]:
-                sum_D_i += self.manhattan_distance(state["passengers"][passenger]["initial_location"], state["passengers"][passenger]["destination"])
+                sum_D_i += self.manhattan_distance(state["passengers"][passenger]["initial_location"],
+                                                   state["passengers"][passenger]["destination"])
             elif not state["passengers"][passenger]["dropped_off"]:
-                sum_T_i += self.manhattan_distance(state["passengers"][passenger]["location"], state["passengers"][passenger]["destination"])
-        return (sum_D_i + sum_T_i)/num_taxis
-
+                sum_T_i += self.manhattan_distance(state["passengers"][passenger]["location"],
+                                                   state["passengers"][passenger]["destination"])
+        return (sum_D_i + sum_T_i) / num_taxis
 
     """Feel free to add your own functions
     (-2, -2, None) means there was a timeout"""
@@ -149,7 +180,7 @@ class TaxiProblem(search.Problem):
         """
         adding data to the state and removing the map
         """""
-        del(initial["map"])
+        del (initial["map"])
         # Adding data about the taxis
         for taxi in initial["taxis"].keys():
             initial["taxis"][taxi]["passengers"] = []
@@ -161,10 +192,8 @@ class TaxiProblem(search.Problem):
         for passenger in initial["passengers"].keys():
             initial["passengers"][passenger]["picked_up"] = False
             initial["passengers"][passenger]["dropped_off"] = False
-            initial["passengers"][passenger]["initial_location"] = initial["passengers"][passenger]["location"]\
-
-        state = json.dumps(initial, sort_keys=True)
-        return state
+            initial["passengers"][passenger]["initial_location"] = initial["passengers"][passenger]["location"]
+        return json.dumps(initial)
 
     def check_possible_grid_moves(self, location, taxi_name):
         """
@@ -174,13 +203,13 @@ class TaxiProblem(search.Problem):
         x = location[0]
         y = location[1]
         if x > 0:
-            possible_moves.append(("move", taxi_name, (x-1, y))) if self.map[x-1][y] != 'I' else None
-        if x < len(self.map)-1:
-            possible_moves.append(("move", taxi_name, (x+1, y))) if self.map[x+1][y] != 'I' else None
+            possible_moves.append(("move", taxi_name, (x - 1, y))) if self.map[x - 1][y] != 'I' else None
+        if x < len(self.map) - 1:
+            possible_moves.append(("move", taxi_name, (x + 1, y))) if self.map[x + 1][y] != 'I' else None
         if y > 0:
-            possible_moves.append(("move", taxi_name, (x, y-1))) if self.map[x][y-1] != 'I' else None
-        if y < len(self.map[0])-1:
-            possible_moves.append(("move", taxi_name, (x, y+1))) if self.map[x][y+1] != 'I' else None
+            possible_moves.append(("move", taxi_name, (x, y - 1))) if self.map[x][y - 1] != 'I' else None
+        if y < len(self.map[0]) - 1:
+            possible_moves.append(("move", taxi_name, (x, y + 1))) if self.map[x][y + 1] != 'I' else None
 
         return possible_moves
 
@@ -190,7 +219,8 @@ class TaxiProblem(search.Problem):
         """
         passenger_actions = []
         for passenger in passengers.keys():
-            if passengers[passenger]["location"] == location and passenger not in taxi_passengers and not passengers[passenger]["dropped_off"]:
+            if passengers[passenger]["location"] == location and passenger not in taxi_passengers and not \
+            passengers[passenger]["dropped_off"]:
                 passenger_actions.append(("pick up", taxi_name, passenger))
         return passenger_actions
 
@@ -203,7 +233,6 @@ class TaxiProblem(search.Problem):
             if all_passengers[passenger]["destination"] == location:
                 passenger_actions.append(("drop off", taxi_name, passenger))
         return passenger_actions
-
 
     def extract_locations(self, action, state):
         """
@@ -241,9 +270,9 @@ class TaxiProblem(search.Problem):
         """
         calculate the euclidean distance between two locations
         """
-        return math.sqrt((location1[0] - location2[0])**2 + (location1[1] - location2[1])**2)
+        return math.sqrt((location1[0] - location2[0]) ** 2 + (location1[1] - location2[1]) ** 2)
 
 
-def create_taxi_problem(game):
-    return TaxiProblem(game)
+def create_taxi_problem(game, type_of_h):
+    return TaxiProblem(game, type_of_h)
 
